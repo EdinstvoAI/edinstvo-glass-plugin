@@ -6,7 +6,7 @@ It is a live shader effect with the same lens as [`@edinstvo/glass`](https://git
 
 ## Documentation
 
-See the full documentation of the glass and every setting at [edinstvoai.github.io/edinstvo-glass-site/docs](https://edinstvoai.github.io/edinstvo-glass-site/docs/).
+See the full documentation of the glass and every setting at [glass.makark.ru/docs](https://glass.makark.ru/docs/).
 
 ## Use
 

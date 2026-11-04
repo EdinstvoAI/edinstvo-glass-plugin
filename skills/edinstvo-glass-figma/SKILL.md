@@ -34,4 +34,4 @@ Figma has no match for `bloom`, `rim`, `glint`, `lift` or motion settings. Leave
 <edinstvo-glass refraction="0.3" depth="6" frost="0.5" style="--glass-radius: 24px">Hello</edinstvo-glass>
 ```
 
-Write only attributes that differ from the defaults. Glass needs an image, video or canvas behind it. Import `@edinstvo/glass/define` once. Full settings: https://edinstvoai.github.io/edinstvo-glass-site/docs/
+Write only attributes that differ from the defaults. Glass needs an image, video or canvas behind it. Import `@edinstvo/glass/define` once. Full settings: https://glass.makark.ru/docs/
