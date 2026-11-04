@@ -12,6 +12,14 @@ See the full documentation of the glass and every setting at [edinstvoai.github.
 
 Add the Edinstvo Glass effect to the frame that holds your design. The effect sees everything inside that frame. Drag the center handle on the canvas to place the lens, then set its size and material in the effect panel. For a second lens with other settings, wrap the frame in another frame and add the effect there.
 
+## Claude
+
+`skills/edinstvo-glass-figma` teaches Claude to turn Figma's built-in Glass effect into `@edinstvo/glass` code. Connect the Figma MCP server and copy the skill:
+
+```bash
+cp -r skills/edinstvo-glass-figma ~/.claude/skills/
+```
+
 ## Source
 
 `main.ts` is the source of the effect, in WGSL and WebGPU.
