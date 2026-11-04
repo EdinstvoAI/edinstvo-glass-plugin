@@ -10,7 +10,7 @@ See the full documentation of the glass and every setting at [edinstvoai.github.
 
 ## Use
 
-Add the Edinstvo Glass effect to a frame or an image. The lens appears inside that layer. Its position, size and radius are set in percent of the layer, the material settings are named as in the package.
+Add the Edinstvo Glass effect to a layer and the whole layer becomes glass. Its fill is the colour of the glass, and the material settings are named as in the package.
 
 ## Source
 

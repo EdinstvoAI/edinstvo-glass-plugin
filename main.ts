@@ -32,7 +32,7 @@ struct Blur { step: vec4f };
 }
 `
   var lens = `diagnostic(off,derivative_uniformity);
-struct Lens { a: vec4f, b: vec4f, c: vec4f, d: vec4f, e: vec4f, f: vec4f };
+struct Lens { a: vec4f, b: vec4f, c: vec4f, d: vec4f };
 @group(0) @binding(0) var<uniform> u: Lens;
 @group(0) @binding(1) var smp: sampler;
 @group(0) @binding(2) var src: texture_2d<f32>;
@@ -48,9 +48,9 @@ fn soft(a: f32, b: f32) -> f32 {
   return lo * pow(1.0 + pow(lo / max(a, b), 2.7), -1.0 / 2.7);
 }
 fn field(p: vec2f) -> vec2f {
-  let c = p - u.a.xy;
-  let b = u.a.zw;
-  let r = u.b.x;
+  let b = u.a.xy * 0.5;
+  let c = p - b;
+  let r = u.a.z;
   let own = rbox(c, b, r);
   var inset = -100000.0;
   if (own < 0.0) {
@@ -60,17 +60,18 @@ fn field(p: vec2f) -> vec2f {
   return vec2f(own, max(inset, -own));
 }
 fn pick(px: vec2f) -> vec4f {
-  return textureSampleLevel(frosted, smp, px / u.f.xy, 0.0);
+  let c = textureSampleLevel(frosted, smp, px / u.a.xy, 0.0);
+  return vec4f(c.rgb / max(c.a, 0.001), c.a);
 }
 @fragment fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let base = textureSampleLevel(src, smp, uv, 0.0);
-  let halo = textureSampleLevel(haze, smp, uv, 0.0);
-  let px = uv * u.f.xy;
+  let hazy = textureSampleLevel(haze, smp, uv, 0.0);
+  let halo = hazy.rgb / max(hazy.a, 0.001);
+  let px = uv * u.a.xy;
   let f = field(px);
   let d = f.x;
-  let bloom = u.f.z;
-  let peak = max(field(u.a.xy).y, 1.0);
-  let band = min(mix(max(u.b.y, 1.0), peak, u.d.w * u.d.w), peak);
+  let peak = max(field(u.a.xy * 0.5).y, 1.0);
+  let band = min(mix(max(u.b.x, 1.0), peak, u.d.w * u.d.w), peak);
   let s = 1.0 - clamp(f.y / band, 0.0, 1.0);
   let height = sqrt(max(1.0 - s * s, 0.0));
   let ex = vec2f(1.0, 0.0);
@@ -79,31 +80,26 @@ fn pick(px: vec2f) -> vec4f {
   let g = slope / max(length(slope), 0.0001);
   let n = normalize(vec3f(g * s * s / sqrt(1.02 - s * s), 1.0));
   let ray = refract(vec3f(0.0, 0.0, -1.0), n, 1.0 / 1.5);
-  let shift = ray.xy / max(-ray.z, 0.5) * band * (0.35 + height) * u.b.z * 1.2;
+  let shift = ray.xy / max(-ray.z, 0.5) * band * (0.35 + height) * u.b.y * 1.2;
   let at = px + shift;
-  let k = 0.04 + u.b.w * 0.3;
-  let mid = pick(at);
-  let alpha = mid.a;
-  var col = vec3f(pick(at - shift * k).r, mid.g, pick(at + shift * k).b);
+  let k = 0.04 + u.b.z * 0.3;
+  var col = vec3f(pick(at - shift * k).r, pick(at).g, pick(at + shift * k).b);
   col = mix(vec3f(dot(col, vec3f(0.2126, 0.7152, 0.0722))), col, 1.08);
-  col = mix(u.e.rgb * alpha, col, u.c.x);
   let lift = u.d.z;
-  col = col * (1.0 + lift) + lift * 0.12 * alpha;
-  col = col + halo.rgb * bloom * 0.22 * s;
+  col = col * (1.0 + lift) + lift * 0.12;
+  col = col + halo * u.c.x * 0.22 * s;
   let light = u.d.xy;
   let facing = dot(n.xy, light);
-  let centered = (px - u.f.xy * 0.5) / (u.f.xy * 0.5);
-  col = col + u.c.y * (max(facing, 0.0) * 0.3 + dot(centered, light) * 0.03) * alpha;
+  let centered = (px - u.a.xy * 0.5) / (u.a.xy * 0.5);
+  col = col + u.c.y * (max(facing, 0.0) * 0.3 + dot(centered, light) * 0.03);
   col = col * (1.0 - u.c.y * max(-facing, 0.0) * 0.2);
   let toward = dot(g, light);
-  col = col + u.c.w * pow(s, 5.0) * (pow(max(toward, 0.0), 6.0) + pow(max(-toward, 0.0), 6.0) * 0.4) * alpha;
+  col = col + u.c.w * pow(s, 5.0) * (pow(max(toward, 0.0), 6.0) + pow(max(-toward, 0.0), 6.0) * 0.4);
   let line = smoothstep(-1.6, -0.6, d);
-  col = col + u.c.z * line * (0.18 + 0.82 * toward * toward) * alpha;
+  col = col + u.c.z * line * (0.18 + 0.82 * toward * toward);
   let mask = 1.0 - smoothstep(-0.75, 0.75, d);
-  let spill = exp(-max(d, 0.0) / 10.0) * bloom * 0.4 * u.c.y * (1.0 - mask);
-  let glow = mix(halo, vec4f(halo.a), 0.6);
-  let outside = mix(base, glow, spill);
-  return mix(outside, vec4f(clamp(col, vec3f(0.0), vec3f(alpha)), alpha), mask);
+  let alpha = base.a * mask;
+  return vec4f(clamp(col, vec3f(0.0), vec3f(1.0)) * alpha, alpha);
 }
 `
   frame.state.blur = device.createShaderModule({ code: blur })
@@ -115,7 +111,7 @@ fn pick(px: vec2f) -> vec4f {
     -1, 1, 0, 0, 1, -1, 1, 1, 1, 1, 1, 0,
   ])
   frame.state.quad.unmap()
-  frame.state.uniforms = device.createBuffer({ size: 96, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST })
+  frame.state.uniforms = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST })
   frame.state.steps = [0, 1, 2, 3].map(function () {
     return device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST })
   })
@@ -187,22 +183,13 @@ export function render(device, frame) {
     state.sizeKey = sizeKey
   }
 
-  var halfW = Math.max(num('width', 60) / 200 * width, 1)
-  var halfH = Math.max(num('height', 40) / 200 * height, 1)
-  var radius = num('radius', 100) / 100 * Math.min(halfW, halfH)
+  var radius = num('radius', 30) / 100 * Math.min(width, height) / 2
   var angle = num('lightAngle', -45) * Math.PI / 180
-  var tint = params.tint || {}
-  var channel = function (value) {
-    var result = Number(value)
-    return Number.isFinite(result) ? result : 1
-  }
   device.queue.writeBuffer(state.uniforms, 0, new Float32Array([
-    num('x', 50) / 100 * width, num('y', 50) / 100 * height, halfW, halfH,
-    radius, num('depth', 6), num('refraction', 0.3), num('dispersion', 0.2),
-    num('transparency', 0.85), num('light', 0.3), num('rim', 0.35), num('glint', 0),
+    width, height, radius, 0,
+    num('depth', 6), num('refraction', 0.3), num('dispersion', 0.2), 0,
+    num('bloom', 0.2), num('light', 0.3), num('rim', 0.35), num('glint', 0),
     Math.cos(angle), Math.sin(angle), num('lift', 0.15), num('splay', 0),
-    channel(tint.r), channel(tint.g), channel(tint.b), 1,
-    width, height, num('bloom', 0.2), 0,
   ]))
   var sigma = num('frost', 0.7) * 8
   var wide = 28
@@ -247,18 +234,12 @@ export function render(device, frame) {
 }
 
 defineProperties(Effect, {
-  x: { type: 'number', label: 'Center X', defaultValue: 50, control: 'slider', min: 0, max: 100, step: 0.5 },
-  y: { type: 'number', label: 'Center Y', defaultValue: 50, control: 'slider', min: 0, max: 100, step: 0.5 },
-  width: { type: 'number', label: 'Width', defaultValue: 60, control: 'slider', min: 1, max: 100, step: 0.5 },
-  height: { type: 'number', label: 'Height', defaultValue: 40, control: 'slider', min: 1, max: 100, step: 0.5 },
-  radius: { type: 'number', label: 'Radius', defaultValue: 100, control: 'slider', min: 0, max: 100, step: 1 },
+  radius: { type: 'number', label: 'Radius', defaultValue: 30, control: 'slider', min: 0, max: 100, step: 1 },
   refraction: { type: 'number', label: 'Refraction', defaultValue: 0.3, control: 'slider', min: 0, max: 1, step: 0.01 },
   depth: { type: 'number', label: 'Depth', defaultValue: 6, control: 'slider', min: 0, max: 96, step: 1 },
   dispersion: { type: 'number', label: 'Dispersion', defaultValue: 0.2, control: 'slider', min: 0, max: 1, step: 0.01 },
   frost: { type: 'number', label: 'Frost', defaultValue: 0.7, control: 'slider', min: 0, max: 1, step: 0.01 },
   splay: { type: 'number', label: 'Splay', defaultValue: 0, control: 'slider', min: 0, max: 1, step: 0.01 },
-  transparency: { type: 'number', label: 'Transparency', defaultValue: 0.85, control: 'slider', min: 0, max: 1, step: 0.01 },
-  tint: { type: 'color', label: 'Tint', defaultValue: { r: 1, g: 1, b: 1, a: 1 } },
   light: { type: 'number', label: 'Light', defaultValue: 0.3, control: 'slider', min: 0, max: 1, step: 0.01 },
   lightAngle: { type: 'number', label: 'Light angle', defaultValue: -45, control: 'slider', min: -180, max: 180, step: 1 },
   bloom: { type: 'number', label: 'Bloom', defaultValue: 0.2, control: 'slider', min: 0, max: 1, step: 0.01 },
