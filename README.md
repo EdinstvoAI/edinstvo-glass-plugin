@@ -10,7 +10,7 @@ See the full documentation of the glass and every setting at [edinstvoai.github.
 
 ## Use
 
-Add the Edinstvo Glass effect to a layer and the whole layer becomes glass. Its fill is the colour of the glass, and the material settings are named as in the package.
+Add the Edinstvo Glass effect to the frame that holds your design. The effect sees everything inside that frame. Drag the center handle on the canvas to place the lens, then set its size and material in the effect panel. For a second lens with other settings, wrap the frame in another frame and add the effect there.
 
 ## Source
 
